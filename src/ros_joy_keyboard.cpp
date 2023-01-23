@@ -8,8 +8,12 @@
 ros::Publisher joy_pub;
 sensor_msgs::Joy joy_msg;
 
+static struct termios initial_settings, new_settings;
+static int peek_character = -1;
+
 int Ascii[] = {96, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 68, 65, 67, 66}; //{`,1,2,3,4,5,6,7,8,9,0,←,↑,→,↓}
 int key;
+int pre_key;
 
 
 std::string msg = R"(
@@ -24,6 +28,7 @@ std::string msg = R"(
  CTRL-C to quit
  
  )";
+
 
 int Getch(void) // #include <termios.h> 참조
 {
@@ -41,17 +46,16 @@ int Getch(void) // #include <termios.h> 참조
     newt.c_iflag &= ~(INLCR | ICRNL | IXON | IXOFF);
     newt.c_lflag &= ~(ICANON | ECHO | ECHOK | ECHOE | ECHONL | ISIG | IEXTEN);
     newt.c_cc[VMIN] = 0;
-    newt.c_cc[VTIME] = 0;
+    newt.c_cc[VTIME] = 1;
     tcsetattr(fileno(stdin), TCSANOW, &newt);
 
     int input = 0;
     if(read(STDIN_FILENO,&input,1) !=1)
     {
         input = 0;
+        
     }
-    
-    // Get the current character
-    //ch = getchar();
+
 
     // Reapply old settings
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
@@ -145,14 +149,15 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "joy_keyboard");
     ros::NodeHandle n;
     joy_pub = n.advertise<sensor_msgs::Joy>("/joy", 1);
-    ros::Rate loop_rate(10);
     
+    ros::Rate loop_rate(1000);
     while (ros::ok())
     {
-
         std::cout << msg;
+        
+
         key = Getch();
-        ROS_INFO_STREAM(key);
+
         if (key == 3) // ctrl+c
         {
             break;
@@ -161,16 +166,14 @@ int main(int argc, char **argv)
         {
             continue;
         }
-        if(key!=-1)
-        {
-            JoyKeboard(key);
-            joy_pub.publish(joy_msg);
-        }
-        else if(key ==-1)
-        {
-            JoyInit();
-            joy_pub.publish(joy_msg);
-        }
+
+        JoyKeboard(key);
+    
+        //ROS_INFO_STREAM(key);
+
+        
+        joy_pub.publish(joy_msg);
+        tcflush(0, TCIFLUSH);
         ros::spinOnce();
         loop_rate.sleep();
     }
