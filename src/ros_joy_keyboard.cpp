@@ -8,12 +8,10 @@
 ros::Publisher joy_pub;
 sensor_msgs::Joy joy_msg;
 
-static struct termios initial_settings, new_settings;
-static int peek_character = -1;
 
 int Ascii[] = {96, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 68, 65, 67, 66}; //{`,1,2,3,4,5,6,7,8,9,0,←,↑,→,↓}
 int key;
-int pre_key;
+
 
 
 std::string msg = R"(
