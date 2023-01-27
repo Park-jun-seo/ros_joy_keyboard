@@ -1,65 +1,58 @@
 #include "ros/ros.h"
+#include <sensor_msgs/Joy.h>
+
 #include <sstream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <termios.h>
-#include <sensor_msgs/Joy.h>
 
 ros::Publisher joy_pub;
 sensor_msgs::Joy joy_msg;
 
-
 int Ascii[] = {96, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 68, 65, 67, 66}; //{`,1,2,3,4,5,6,7,8,9,0,←,↑,→,↓}
-int key;
+char key;
 
-
-
-std::string msg = R"(
-
- ---------------------------
- buttons:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
- key borad:[`, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-
- axes   :  [←→, ↑↓, 0, 0, 0, 0]
- key borad:[←, ↑, →, ↓]
- 
- CTRL-C to quit
- 
- )";
-
-
-int Getch(void) // #include <termios.h> 참조
+class KeyboardReader
 {
-    int ch;
-    struct termios oldt;
-    struct termios newt;
-    
-    // Store old settings, and copy to new settings
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
+public:
+  KeyboardReader(): kfd(0)
+  {
+    // get the console in raw mode
+    tcgetattr(kfd, &cooked);
+    struct termios raw;
+    memcpy(&raw, &cooked, sizeof(struct termios));
+    raw.c_lflag &=~ (ICANON | ECHO);
+    raw.c_iflag |= IGNBRK;
+    raw.c_iflag &= ~(INLCR | ICRNL | IXON | IXOFF);
+    raw.c_lflag &= ~(ICANON | ECHO | ECHOK | ECHOE | ECHONL | ISIG | IEXTEN);
+    // Setting a new line, then end of file
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 0;
+    raw.c_cc[VEOL] = 1;
+    raw.c_cc[VEOF] = 2;
+    tcsetattr(kfd, TCSANOW, &raw);
+  }
 
-    // Make required changes and apply the settings
-    newt.c_lflag &= ~(ICANON | ECHO);
-    newt.c_iflag |= IGNBRK;
-    newt.c_iflag &= ~(INLCR | ICRNL | IXON | IXOFF);
-    newt.c_lflag &= ~(ICANON | ECHO | ECHOK | ECHOE | ECHONL | ISIG | IEXTEN);
-    newt.c_cc[VMIN] = 0;
-    newt.c_cc[VTIME] = 1;
-    tcsetattr(fileno(stdin), TCSANOW, &newt);
-
-    int input = 0;
-    if(read(STDIN_FILENO,&input,1) !=1)
+  void readOne(char * c)
+  {
+    int rc = read(kfd, c, 1);
+    if (rc < 0)
     {
-        input = 0;
-        
+      throw std::runtime_error("read failed");
     }
+  }
 
+  void shutdown()
+  {
+    tcsetattr(kfd, TCSANOW, &cooked);
+  }
 
-    // Reapply old settings
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+private:
+  int kfd;
+  struct termios cooked;
+};
 
-    return input;
-}
 
 void JoyInit() // Joy 버튼 초기화
 {
@@ -142,38 +135,45 @@ void JoyKeboard(int key_num) // 지정 값과 같은 값이 들어오면 버튼 
     }
 }
 
+KeyboardReader input;
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "joy_keyboard");
     ros::NodeHandle n;
     joy_pub = n.advertise<sensor_msgs::Joy>("/joy", 1);
-    
-    ros::Rate loop_rate(1000);
+    puts("---------------------------");
+    puts("buttons:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]");
+    puts("key borad:[`, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]");
+    puts("axes   :  [←→, ↑↓, 0, 0, 0, 0]");
+    puts("key borad:[←, ↑, →, ↓]");
+    puts("CTRL-C to quit");
+
+    ros::Rate loop_rate(10);
     while (ros::ok())
     {
-        std::cout << msg;
-        
-
-        key = Getch();
+        input.readOne(&key);
+        //key = Getch();
 
         if (key == 3) // ctrl+c
         {
             break;
         }
-        if(key ==27 || key==91)
+        if (key == 27 || key == 91)
         {
             continue;
         }
 
         JoyKeboard(key);
-    
-        //ROS_INFO_STREAM(key);
 
-        
+        // ROS_INFO_STREAM(key);
+
         joy_pub.publish(joy_msg);
+        key=0;
         tcflush(0, TCIFLUSH);
         ros::spinOnce();
         loop_rate.sleep();
     }
+    input.shutdown();
     return 0;
 }
