@@ -6,5 +6,6 @@
 
 #
 
-![Screenshot from 2023-01-08 21-12-59](https://user-images.githubusercontent.com/63947617/211195485-79f802cf-4fea-4bbe-b17d-a8daaca48595.png)
+
+![화면 캡처 2023-01-27 140323](https://user-images.githubusercontent.com/63947617/215013353-cde2673d-d931-441b-be76-ebb4626bf158.png)
 #
